@@ -390,13 +390,11 @@ func (l *Logger) millRun() {
 // starting the mill goroutine if necessary.
 func (l *Logger) mill() {
 	l.startMill.Do(func() {
-		l.millCh = make(chan struct{},1)
+		l.millCh = make(chan struct{}, 1)
 		go l.millRun()
 	})
 	select {
 	case l.millCh <- struct{}{}:
-		close(l.millCh)
-		l.millCh = nil
 	default:
 	}
 }
