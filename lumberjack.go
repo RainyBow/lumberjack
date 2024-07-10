@@ -111,7 +111,7 @@ type Logger struct {
 	file *os.File
 	mu   sync.Mutex
 
-	millCh    chan bool
+	millCh    chan struct{}
 	startMill sync.Once
 }
 
@@ -175,6 +175,10 @@ func (l *Logger) close() error {
 	}
 	err := l.file.Close()
 	l.file = nil
+	if l.millCh != nil {
+		close(l.millCh)
+		l.millCh = nil
+	}
 	return err
 }
 
@@ -386,11 +390,13 @@ func (l *Logger) millRun() {
 // starting the mill goroutine if necessary.
 func (l *Logger) mill() {
 	l.startMill.Do(func() {
-		l.millCh = make(chan bool, 1)
+		l.millCh = make(chan struct{},1)
 		go l.millRun()
 	})
 	select {
-	case l.millCh <- true:
+	case l.millCh <- struct{}{}:
+		close(l.millCh)
+		l.millCh = nil
 	default:
 	}
 }
