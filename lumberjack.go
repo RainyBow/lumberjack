@@ -113,6 +113,7 @@ type Logger struct {
 
 	millCh    chan struct{}
 	startMill sync.Once
+	closed    bool
 }
 
 var (
@@ -135,7 +136,9 @@ var (
 func (l *Logger) Write(p []byte) (n int, err error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-
+	if l.closed {
+		return 0, fmt.Errorf("logger has been closed")
+	}
 	writeLen := int64(len(p))
 	if writeLen > l.max() {
 		return 0, fmt.Errorf(
@@ -169,6 +172,7 @@ func (l *Logger) Close() error {
 		close(l.millCh)
 		l.millCh = nil
 	}
+	l.closed = true
 	return l.close()
 }
 
@@ -190,6 +194,9 @@ func (l *Logger) close() error {
 func (l *Logger) Rotate() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if l.closed {
+		return fmt.Errorf("logger has been closed")
+	}
 	return l.rotate()
 }
 
