@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -769,4 +770,26 @@ func notExist(path string, t testing.TB) {
 func exists(path string, t testing.TB) {
 	_, err := os.Stat(path)
 	assertUp(err == nil, t, 1, "expected file to exist, but got error from os.Stat: %v", err)
+}
+
+func TestClose(t *testing.T) {
+	tmp, err := os.MkdirTemp("", "")
+	assertUp(err == nil, t, 1, "expected to create temp dir but failed with error:%v", err)
+	defer os.RemoveAll(tmp)
+	runtime.GC()
+	grs := runtime.NumGoroutine()
+	tmpfile := filepath.Join(tmp, "tmp.log")
+	for i := 0; i < 1000; i++ {
+		logger := Logger{
+			Filename:   tmpfile,
+			MaxSize:    1,
+			MaxBackups: 1,
+			Compress:   true,
+		}
+		logger.Write([]byte(fmt.Sprintf("%d\n", i)))
+		logger.Close()
+	}
+	runtime.GC()
+	grs2 := runtime.NumGoroutine()
+	assertUp(grs == grs2, t, 1, "expected goroutine number %d but got %d", grs, grs2)
 }

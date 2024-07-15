@@ -114,6 +114,7 @@ type Logger struct {
 	millCh    chan struct{}
 	startMill sync.Once
 	closed    bool
+	closeCh   chan struct{}
 }
 
 var (
@@ -173,6 +174,10 @@ func (l *Logger) Close() error {
 		l.millCh = nil
 	}
 	l.closed = true
+	if l.closeCh == nil {
+		l.closeCh = make(chan struct{}, 2)
+		l.closeCh <- struct{}{}
+	}
 	return l.close()
 }
 
@@ -387,9 +392,13 @@ func (l *Logger) millRunOnce() error {
 // millRun runs in a goroutine to manage post-rotation compression and removal
 // of old log files.
 func (l *Logger) millRun() {
-	for range l.millCh {
-		// what am I going to do, log this?
-		_ = l.millRunOnce()
+	for {
+		select {
+		case <-l.millCh:
+			_ = l.millRunOnce()
+		case <-l.closeCh:
+			return
+		}
 	}
 }
 
