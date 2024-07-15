@@ -112,6 +112,8 @@ type Logger struct {
 	mu   sync.Mutex
 
 	millCh    chan struct{}
+	closeCh   chan struct{}
+	closed    bool
 	startMill sync.Once
 }
 
@@ -135,7 +137,9 @@ var (
 func (l *Logger) Write(p []byte) (n int, err error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-
+	if l.closed {
+		return 0, fmt.Errorf("logger has been closed")
+	}
 	writeLen := int64(len(p))
 	if writeLen > l.max() {
 		return 0, fmt.Errorf(
@@ -162,12 +166,18 @@ func (l *Logger) Write(p []byte) (n int, err error) {
 }
 
 // Close implements io.Closer, and closes the current logfile.
+// After Close, the logger can not be used
 func (l *Logger) Close() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	l.closed = true
 	if l.millCh != nil {
 		close(l.millCh)
 		l.millCh = nil
+	}
+	if l.closeCh == nil {
+		l.closeCh = make(chan struct{}, 2)
+		l.closeCh <- struct{}{}
 	}
 	return l.close()
 }
@@ -190,6 +200,9 @@ func (l *Logger) close() error {
 func (l *Logger) Rotate() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if l.closed {
+		return fmt.Errorf("logger has been closed")
+	}
 	return l.rotate()
 }
 
@@ -380,9 +393,13 @@ func (l *Logger) millRunOnce() error {
 // millRun runs in a goroutine to manage post-rotation compression and removal
 // of old log files.
 func (l *Logger) millRun() {
-	for range l.millCh {
-		// what am I going to do, log this?
-		_ = l.millRunOnce()
+	for {
+		select {
+		case <-l.millCh:
+			_ = l.millRunOnce()
+		case <-l.closeCh:
+			return
+		}
 	}
 }
 
