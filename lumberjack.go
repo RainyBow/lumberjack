@@ -406,13 +406,10 @@ func (l *Logger) millRun() {
 // starting the mill goroutine if necessary.
 func (l *Logger) mill() {
 	l.startMill.Do(func() {
-		l.millCh = make(chan struct{}, 1)
+		l.millCh = make(chan struct{})
 		go l.millRun()
 	})
-	select {
-	case l.millCh <- struct{}{}:
-	default:
-	}
+	l.millCh <- struct{}{}
 }
 
 // oldLogFiles returns the list of backup log files stored in the same
