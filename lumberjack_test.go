@@ -822,7 +822,6 @@ func TestCloseLargeFile(t *testing.T) {
 		err = logger.Close()
 		assertUp(err == nil, t, 1, "expected close logger but got err :%v", err)
 	}
-	time.Sleep(time.Second * 5)
 	count := getDirFileCount(tmp, ".log.gz")
 	assertUp(count == 100, t, 1, "expected log.gz file 100 but got %d", count)
 	runtime.GC()
